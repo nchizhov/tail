@@ -8,11 +8,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
-	
-	"github.com/nxadm/tail"
+
+	"github.com/nchizhov/tail"
 )
 
 type jsonStruct struct {
@@ -20,7 +19,7 @@ type jsonStruct struct {
 }
 
 func main() {
-	file, err := ioutil.TempFile(os.TempDir(), "")
+	file, err := os.CreateTemp(os.TempDir(), "")
 	if err != nil {
 		panic(err)
 	}

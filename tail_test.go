@@ -1,4 +1,4 @@
-// Copyright (c) 2019 FOSS contributors of https://github.com/nxadm/tail
+// Copyright (c) 2019 FOSS contributors of https://github.com/nchizhov/tail
 // Copyright (c) 2015 HPE Software Inc. All rights reserved.
 // Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
 
@@ -11,14 +11,13 @@ import (
 	"fmt"
 	_ "fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/nxadm/tail/ratelimiter"
-	"github.com/nxadm/tail/watch"
+	"github.com/nchizhov/tail/ratelimiter"
+	"github.com/nchizhov/tail/watch"
 )
 
 func TestTailFile(t *testing.T) {
@@ -96,7 +95,7 @@ func TestWaitsForFileToExistRelativePath(t *testing.T) {
 	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
 
 	<-time.After(100 * time.Millisecond)
-	if err := ioutil.WriteFile("test.txt", []byte("hello\nworld\n"), 0600); err != nil {
+	if err := os.WriteFile("test.txt", []byte("hello\nworld\n"), 0600); err != nil {
 		tailTest.Fatal(err)
 	}
 	tailTest.Cleanup(tail, true)
@@ -664,7 +663,7 @@ type TailTest struct {
 }
 
 func NewTailTest(name string, t *testing.T) (TailTest, func()) {
-	testdir, err := ioutil.TempDir("", "tail-test-"+name)
+	testdir, err := os.MkdirTemp("", "tail-test-"+name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -677,14 +676,14 @@ func NewTailTest(name string, t *testing.T) (TailTest, func()) {
 }
 
 func (t TailTest) CreateFile(name string, contents string) {
-	err := ioutil.WriteFile(t.path+"/"+name, []byte(contents), 0600)
+	err := os.WriteFile(t.path+"/"+name, []byte(contents), 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func (t TailTest) AppendToFile(name string, contents string) {
-	err := ioutil.WriteFile(t.path+"/"+name, []byte(contents), 0600|os.ModeAppend)
+	err := os.WriteFile(t.path+"/"+name, []byte(contents), 0600|os.ModeAppend)
 	if err != nil {
 		t.Fatal(err)
 	}

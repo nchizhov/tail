@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nxadm/tail"
+	"github.com/nchizhov/tail"
 )
 
 var logFile = "/var/log/syslog"

@@ -1,12 +1,12 @@
-// Copyright (c) 2019 FOSS contributors of https://github.com/nxadm/tail
+// Copyright (c) 2019 FOSS contributors of https://github.com/nchizhov/tail
 // Copyright (c) 2015 HPE Software Inc. All rights reserved.
 // Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
 
-//nxadm/tail provides a Go library that emulates the features of the BSD `tail`
-//program. The library comes with full support for truncation/move detection as
-//it is designed to work with log rotation tools. The library works on all
-//operating systems supported by Go, including POSIX systems like Linux and
-//*BSD, and MS Windows. Go 1.9 is the oldest compiler release supported.
+// nchizhov/tail provides a Go library that emulates the features of the BSD `tail`
+// program. The library comes with full support for truncation/move detection as
+// it is designed to work with log rotation tools. The library works on all
+// operating systems supported by Go, including POSIX systems like Linux and
+// *BSD, and MS Windows. Go 1.9 is the oldest compiler release supported.
 package tail
 
 import (
@@ -14,16 +14,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/nxadm/tail/ratelimiter"
-	"github.com/nxadm/tail/util"
-	"github.com/nxadm/tail/watch"
+	"github.com/nchizhov/tail/ratelimiter"
+	"github.com/nchizhov/tail/util"
+	"github.com/nchizhov/tail/watch"
 	"gopkg.in/tomb.v1"
 )
 
@@ -69,7 +68,7 @@ type logger interface {
 
 // Config is used to specify how a file must be tailed.
 type Config struct {
-	// File-specifc
+	// File-specific
 	Location  *SeekInfo // Tail from this location. If nil, start at the beginning of the file
 	ReOpen    bool      // Reopen recreated files (tail -F)
 	MustExist bool      // Fail early if the file does not exist
@@ -112,7 +111,7 @@ var (
 	// DefaultLogger logs to os.Stderr and it is used when Config.Logger == nil
 	DefaultLogger = log.New(os.Stderr, "", log.LstdFlags)
 	// DiscardingLogger can be used to disable logging output
-	DiscardingLogger = log.New(ioutil.Discard, "", 0)
+	DiscardingLogger = log.New(io.Discard, "", 0)
 )
 
 // TailFile begins tailing the file. And returns a pointer to a Tail struct
@@ -214,14 +213,16 @@ func (tail *Tail) reopen() error {
 	}
 	tail.closeFile()
 	tail.lineNum = 0
+	isReopenFile := false
 	for {
 		var err error
 		tail.file, err = OpenFile(tail.Filename)
 		if err != nil {
+			isReopenFile = true
 			if os.IsNotExist(err) {
 				tail.Logger.Printf("Waiting for %s to appear...", tail.Filename)
 				if err := tail.watcher.BlockUntilExists(&tail.Tomb); err != nil {
-					if err == tomb.ErrDying {
+					if errors.Is(err, tomb.ErrDying) {
 						return err
 					}
 					return fmt.Errorf("Failed to detect creation of %s: %s", tail.Filename, err)
@@ -231,6 +232,12 @@ func (tail *Tail) reopen() error {
 			return fmt.Errorf("Unable to open file %s: %s", tail.Filename, err)
 		}
 		break
+	}
+	if isReopenFile {
+		tail.Location = &SeekInfo{
+			Offset: 0,
+			Whence: io.SeekStart,
+		}
 	}
 	return nil
 }
@@ -275,7 +282,7 @@ func (tail *Tail) tailFileSync() {
 		// deferred first open.
 		err := tail.reopen()
 		if err != nil {
-			if err != tomb.ErrDying {
+			if !errors.Is(err, tomb.ErrDying) {
 				tail.Kill(err)
 			}
 			return
@@ -298,9 +305,14 @@ func (tail *Tail) tailFileSync() {
 		// do not seek in named pipes
 		if !tail.Pipe {
 			// grab the position in case we need to back up in the event of a half-line
-			if _, err := tail.Tell(); err != nil {
+			offset, err := tail.Tell()
+			if err != nil {
 				tail.Kill(err)
 				return
+			}
+			tail.Location = &SeekInfo{
+				Offset: offset,
+				Whence: io.SeekStart,
 			}
 		}
 
@@ -312,7 +324,7 @@ func (tail *Tail) tailFileSync() {
 			if cooloff {
 				// Wait a second before seeking till the end of
 				// file when rate limit is reached.
-				msg := ("Too much log activity; waiting a second before resuming tailing")
+				msg := "Too much log activity; waiting a second before resuming tailing"
 				offset, _ := tail.Tell()
 				tail.Lines <- &Line{msg, tail.lineNum, SeekInfo{Offset: offset}, time.Now(), errors.New(msg)}
 				select {
@@ -346,7 +358,7 @@ func (tail *Tail) tailFileSync() {
 			// implementation (inotify or polling).
 			err := tail.waitForChanges()
 			if err != nil {
-				if err != ErrStop {
+				if !errors.Is(err, ErrStop) {
 					tail.Kill(err)
 				}
 				return
@@ -359,7 +371,7 @@ func (tail *Tail) tailFileSync() {
 
 		select {
 		case <-tail.Dying():
-			if tail.Err() == errStopAtEOF {
+			if errors.Is(tail.Err(), errStopAtEOF) {
 				continue
 			}
 			return
